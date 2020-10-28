@@ -52,7 +52,7 @@ public class UnApkmActivity extends AppCompatActivity {
                     new AlertDialog.Builder(this)
                             .setTitle(R.string.app_name)
                             .setCancelable(false)
-                            .setMessage(R.string.in_progress)
+                            .setView(getLayoutInflater().inflate(R.layout.dialog_progress, null))
                             .show();
                 } catch (IOException e) {
                     e.printStackTrace();
