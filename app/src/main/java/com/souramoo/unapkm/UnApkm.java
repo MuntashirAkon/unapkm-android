@@ -38,6 +38,7 @@ import androidx.annotation.NonNull;
 
 public class UnApkm {
     public static final long MEM_LIMIT = 0x20000000;
+    public static final byte[] PASSWORD = "#$%@#dfas4d00fFSDF9GSD56$^53$%7WRGF3dzzqasD!@".getBytes();
 
     private UnApkm() {
     }
@@ -74,76 +75,90 @@ public class UnApkm {
     }
 
     @NonNull
-    public static Header processHeader(InputStream i, LazySodiumAndroid lazySodium) throws IOException {
-        return processHeader(i, lazySodium, true);
+    public static Header processHeader(InputStream inputStream,
+                                       LazySodiumAndroid lazySodium)
+            throws IOException {
+        return processHeader(inputStream, lazySodium, true);
     }
 
     @NonNull
-    public static Header processHeader(InputStream i, LazySodiumAndroid lazySodium, boolean expensiveOps) throws IOException {
-        return processHeader(i, lazySodium, expensiveOps, MEM_LIMIT);
+    public static Header processHeader(InputStream inputStream,
+                                       LazySodiumAndroid lazySodium,
+                                       boolean expensiveOps)
+            throws IOException {
+        return processHeader(inputStream, lazySodium, expensiveOps, MEM_LIMIT);
     }
 
     @NonNull
-    public static Header processHeader(InputStream i, LazySodiumAndroid lazySodium, boolean expensiveOps, long upperMemLimit) throws IOException {
-        getBytes(i, 1); // skip
+    public static Header processHeader(InputStream inputStream,
+                                       LazySodiumAndroid lazySodium,
+                                       boolean expensiveOps,
+                                       long upperMemLimit)
+            throws IOException {
+        getBytes(inputStream, 1); // skip
 
-        byte alg = getBytes(i, 1)[0];
+        byte alg = getBytes(inputStream, 1)[0];
         if (alg > 2 || alg < 1) {
             throw new IOException("incorrect algo");
         }
 
         PwHash.Alg algo = PwHash.Alg.valueOf(alg);
 
-        long opsLimit = byteToInt(getBytes(i, 8));
-        int memLimit = byteToInt(getBytes(i, 8));
+        long opsLimit = byteToInt(getBytes(inputStream, 8));
+        int memLimit = byteToInt(getBytes(inputStream, 8));
 
         if (memLimit < 0 || memLimit > upperMemLimit) {
             throw new IOException("too much memory aaah");
         }
 
-        byte[] en = getBytes(i, 8);
+        byte[] en = getBytes(inputStream, 8);
         long chunkSize = byteToInt(en);
 
-        byte[] salt = getBytes(i, 16);
-        byte[] pwHashBytes = getBytes(i, 24);
+        byte[] salt = getBytes(inputStream, 16);
+        byte[] pwHashBytes = getBytes(inputStream, 24);
 
 
         byte[] outputHash = new byte[32];
-        if(expensiveOps)
-            lazySodium.cryptoPwHash(outputHash, 32, "#$%@#dfas4d00fFSDF9GSD56$^53$%7WRGF3dzzqasD!@".getBytes(), 0x2d, salt, opsLimit, new NativeLong(memLimit), algo);
+        if (expensiveOps) {
+            lazySodium.cryptoPwHash(outputHash, 32, PASSWORD, PASSWORD.length, salt,
+                    opsLimit, new NativeLong(memLimit), algo);
+        }
 
         return new Header(pwHashBytes, outputHash, chunkSize);
     }
 
     @NonNull
-    public static InputStream decryptStream(InputStream i) throws IOException {
+    public static InputStream decryptStream(InputStream inputStream) throws IOException {
         LazySodiumAndroid lazySodium = new LazySodiumAndroid(new SodiumAndroid());
-        Header h  = processHeader(i, lazySodium);
-        return decryptStream(i, h, lazySodium);
+        Header h = processHeader(inputStream, lazySodium);
+        return decryptStream(inputStream, h, lazySodium);
     }
 
     @NonNull
-    public static InputStream decryptStream(final InputStream i, final Header h, final LazySodiumAndroid lazySodium) throws IOException {
+    public static InputStream decryptStream(final InputStream inputStream,
+                                            final Header header,
+                                            final LazySodiumAndroid lazySodium)
+            throws IOException {
         final PipedInputStream pipedInputStream = new PipedInputStream();
         final PipedOutputStream pipedOutputStream = new PipedOutputStream();
 
         pipedInputStream.connect(pipedOutputStream);
 
         Thread pipeWriter = new Thread() {
-            public void run () {
+            public void run() {
                 try {
                     SecretStream.State state = new SecretStream.State();
-                    lazySodium.cryptoSecretStreamInitPull(state, h.pwHashBytes, h.outputHash);
+                    lazySodium.cryptoSecretStreamInitPull(state, header.pwHashBytes, header.outputHash);
 
-                    long chunkSizePlusPadding = h.chunkSize + 0x11;
+                    long chunkSizePlusPadding = header.chunkSize + 0x11;
                     byte[] cipherChunk = new byte[(int) chunkSizePlusPadding];
 
                     int bytesRead;
 
-                    while ( (bytesRead = i.read(cipherChunk)) != -1) {
+                    while ((bytesRead = inputStream.read(cipherChunk)) != -1) {
                         int tagSize = 1;
 
-                        byte[] decryptedChunk = new byte[ (int) h.chunkSize ];
+                        byte[] decryptedChunk = new byte[(int) header.chunkSize];
                         byte[] tag = new byte[tagSize];
 
                         boolean success = lazySodium.cryptoSecretStreamPull(state, decryptedChunk, tag, cipherChunk, bytesRead);
@@ -155,13 +170,14 @@ public class UnApkm {
                         Arrays.fill(cipherChunk, (byte) 0);
                     }
                 } catch (IOException e) {
-                    if(!"Pipe closed".equals(e.getMessage())) {
+                    if (!"Pipe closed".equals(e.getMessage())) {
                         e.printStackTrace();
                     }
                 } finally {
                     try {
                         pipedOutputStream.close();
-                    } catch(IOException ignored) {}
+                    } catch (IOException ignored) {
+                    }
                 }
             }
         };
@@ -194,7 +210,7 @@ public class UnApkm {
             }
             zipIn.close();
             zos.close();
-        } catch(IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

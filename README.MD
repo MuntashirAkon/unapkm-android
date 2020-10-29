@@ -2,7 +2,7 @@
 
 A utility app to convert apkm files to apks on Android.
 
-_The app is still in progress._
+_The app development is still in progress._
 
 Objectives:
 - [x] To work as a utility app to convert apkm to apks

@@ -17,6 +17,7 @@
 
 package io.github.muntashirakon.unapkm;
 
+import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.database.Cursor;
@@ -40,6 +41,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class UnApkmActivity extends AppCompatActivity {
+    private InputStream inputStream;
+    private AlertDialog dialog;
     private ActivityResultLauncher<String> exportManifest = registerForActivityResult(
             new ActivityResultContracts.CreateDocument(),
             uri -> {
@@ -47,21 +50,10 @@ public class UnApkmActivity extends AppCompatActivity {
                     // Back button pressed.
                     return;
                 }
-                try {
-                    new UnApkmThread(uri).start();
-                    new AlertDialog.Builder(this)
-                            .setTitle(R.string.app_name)
-                            .setCancelable(false)
-                            .setView(getLayoutInflater().inflate(R.layout.dialog_progress, null))
-                            .show();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    Toast.makeText(this, R.string.failed, Toast.LENGTH_SHORT).show();
-                    finish();
-                }
+                new UnApkmThread(uri).start();
             });
-    private InputStream inputStream;
 
+    @SuppressLint("InflateParams")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -77,6 +69,11 @@ public class UnApkmActivity extends AppCompatActivity {
             finish();
             return;
         }
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.app_name)
+                .setCancelable(false)
+                .setView(getLayoutInflater().inflate(R.layout.dialog_progress, null))
+                .create();
         // Open input stream
         try {
             String fileName = getFileName(getContentResolver(), uri);
@@ -88,6 +85,18 @@ public class UnApkmActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.failed, Toast.LENGTH_SHORT).show();
             finish();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (dialog != null) dialog.dismiss();
+        if (inputStream != null) {
+            try {
+                inputStream.close();
+            } catch (IOException ignore) {
+            }
+        }
+        super.onDestroy();
     }
 
     @Nullable
@@ -112,18 +121,29 @@ public class UnApkmActivity extends AppCompatActivity {
     }
 
     class UnApkmThread extends Thread {
-        OutputStream outputStream;
-        UnApkmThread(Uri uri) throws FileNotFoundException {
-            outputStream = getContentResolver().openOutputStream(uri);
+        Uri uri;
+
+        UnApkmThread(Uri uri) {
+            this.uri = uri;
         }
 
         @Override
         public void run() {
-            UnApkm.decryptFile(inputStream, outputStream);
-            runOnUiThread(() -> {
-                Toast.makeText(UnApkmActivity.this, R.string.success, Toast.LENGTH_SHORT).show();
-                finish();
-            });
+            runOnUiThread(() -> dialog.show());
+            try (OutputStream outputStream = getContentResolver().openOutputStream(uri)) {
+                if (outputStream == null) throw new IOException();
+                UnApkm.decryptFile(inputStream, outputStream);
+                runOnUiThread(() -> {
+                    Toast.makeText(UnApkmActivity.this, R.string.success, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            } catch (IOException e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    Toast.makeText(UnApkmActivity.this, R.string.failed, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            }
         }
     }
 }
