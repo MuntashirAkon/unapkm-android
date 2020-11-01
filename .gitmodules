@@ -1,0 +1,3 @@
+[submodule "lazysodium-android"]
+	path = lazysodium-android
+	url = https://github.com/MuntashirAkon/lazysodium-android
