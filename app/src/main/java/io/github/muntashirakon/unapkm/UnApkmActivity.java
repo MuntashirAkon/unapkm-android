@@ -29,7 +29,6 @@ import android.widget.Toast;
 import com.souramoo.unapkm.UnApkm;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -44,7 +43,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class UnApkmActivity extends AppCompatActivity {
     private InputStream inputStream;
     private AlertDialog dialog;
-    private ActivityResultLauncher<String> exportManifest = registerForActivityResult(
+    private final ActivityResultLauncher<String> exportManifest = registerForActivityResult(
             new ActivityResultContracts.CreateDocument(),
             uri -> {
                 if (uri == null) {
@@ -78,10 +77,11 @@ public class UnApkmActivity extends AppCompatActivity {
         // Open input stream
         try {
             String fileName = getFileName(getContentResolver(), uri);
+            if (fileName != null && !fileName.endsWith(".apkm")) throw new IOException("Invalid file.");
             inputStream = getContentResolver().openInputStream(uri);
             if (inputStream == null) finish();
             exportManifest.launch(fileName != null ? trimExtension(fileName) + ".apks" : null);
-        } catch (FileNotFoundException e) {
+        } catch (IOException e) {
             e.printStackTrace();
             Toast.makeText(this, R.string.failed, Toast.LENGTH_SHORT).show();
             finish();
