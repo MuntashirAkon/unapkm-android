@@ -15,7 +15,6 @@
             <option value="$PROJECT_DIR$/api" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/example" />
-            <option value="$PROJECT_DIR$/lazysodium-android/app" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
