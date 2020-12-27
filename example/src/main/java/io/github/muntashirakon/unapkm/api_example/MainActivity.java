@@ -15,22 +15,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package io.github.muntashirakon.unapkm;
+package io.github.muntashirakon.unapkm.api_example;
 
 import android.annotation.SuppressLint;
 import android.content.ContentResolver;
-import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.provider.OpenableColumns;
 import android.widget.Toast;
 
-import com.souramoo.unapkm.UnApkm;
-
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -39,63 +37,76 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import io.github.muntashirakon.unapkm.api.UnApkm;
 
-public class UnApkmActivity extends AppCompatActivity {
-    private InputStream inputStream;
+public class MainActivity extends AppCompatActivity {
+    private static final String UN_APKM_PKG = "io.github.muntashirakon.unapkm";
+
+    private ParcelFileDescriptor descriptor;
     private AlertDialog dialog;
+
     private final ActivityResultLauncher<String> convertLauncher = registerForActivityResult(
             new ActivityResultContracts.CreateDocument(),
             uri -> {
                 if (uri == null) {
                     // Back button pressed.
+                    Toast.makeText(this, "Operation cancelled.", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 new UnApkmThread(uri).start();
             });
+    private final ActivityResultLauncher<String> openUnApkm = registerForActivityResult(
+            new ActivityResultContracts.GetContent(),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    Toast.makeText(this, "Operation cancelled.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                // Open input stream
+                try {
+                    String fileName = getFileName(getContentResolver(), uri);
+                    if (fileName != null && !fileName.endsWith(".apkm")) {
+                        throw new IOException("Invalid file.");
+                    }
+                    if (descriptor != null) {
+                        try {
+                            descriptor.close();
+                        } catch (IOException ignore) {
+                        }
+                    }
+                    descriptor = getContentResolver().openFileDescriptor(uri, "r");
+                    if (descriptor == null) throw new IOException();
+                    convertLauncher.launch(fileName != null ? trimExtension(fileName) + ".apks" : null);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Toast.makeText(this, "Conversion failed.", Toast.LENGTH_SHORT).show();
+                }
+            });
 
     @SuppressLint("InflateParams")
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Intent intent = getIntent();
-        // Check if action is matched
-        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) {
-            finish();
-            return;
-        }
-        // Read Uri
-        Uri uri = intent.getData();
-        if (uri == null) {
-            finish();
-            return;
-        }
+        setContentView(R.layout.activity_main);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
         dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.app_name)
                 .setCancelable(false)
                 .setView(getLayoutInflater().inflate(R.layout.dialog_progress, null))
                 .create();
-        // Open input stream
-        try {
-            String fileName = getFileName(getContentResolver(), uri);
-            if (fileName != null && !fileName.endsWith(".apkm")) {
-                throw new IOException("Invalid file.");
-            }
-            inputStream = getContentResolver().openInputStream(uri);
-            if (inputStream == null) finish();
-            convertLauncher.launch(fileName != null ? trimExtension(fileName) + ".apks" : null);
-        } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(this, R.string.failed, Toast.LENGTH_SHORT).show();
-            finish();
-        }
+        findViewById(R.id.convert_btn).setOnClickListener(v -> openUnApkm.launch("application/*"));
+
     }
 
     @Override
     protected void onDestroy() {
         if (dialog != null) dialog.dismiss();
-        if (inputStream != null) {
+        if (descriptor != null) {
             try {
-                inputStream.close();
+                descriptor.close();
             } catch (IOException ignore) {
             }
         }
@@ -143,16 +154,18 @@ public class UnApkmActivity extends AppCompatActivity {
             runOnUiThread(() -> dialog.show());
             try (OutputStream outputStream = getContentResolver().openOutputStream(uri)) {
                 if (outputStream == null) throw new IOException();
-                UnApkm.decryptFile(inputStream, outputStream);
+                UnApkm unApkm = new UnApkm(MainActivity.this, UN_APKM_PKG);
+                unApkm.decryptFile(descriptor, outputStream);
+                descriptor.close();
                 runOnUiThread(() -> {
-                    Toast.makeText(UnApkmActivity.this, R.string.success, Toast.LENGTH_SHORT).show();
-                    finish();
+                    Toast.makeText(MainActivity.this, "Conversion Success!", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
                 });
-            } catch (IOException e) {
+            } catch (IOException | RemoteException e) {
                 e.printStackTrace();
                 runOnUiThread(() -> {
-                    Toast.makeText(UnApkmActivity.this, R.string.failed, Toast.LENGTH_SHORT).show();
-                    finish();
+                    Toast.makeText(MainActivity.this, "Conversion failed!", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
                 });
             }
         }

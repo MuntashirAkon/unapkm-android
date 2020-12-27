@@ -1,3 +1,5 @@
+include ':example'
+include ':api'
 include ':app', ':lazysodium'
 rootProject.name = "UnApkm"
 project(':lazysodium').projectDir = new File(rootDir, 'lazysodium-android/app')
