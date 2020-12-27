@@ -1,0 +1,2 @@
+- Add application/vnd.apkm MIME
+- Add UnApkm API for third-party apps
