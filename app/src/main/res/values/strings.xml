@@ -19,4 +19,5 @@
     <string name="in_progress">In progress</string>
     <string name="success">Success!</string>
     <string name="failed">Failed!</string>
+    <string name="drm_free_apkm_msg">The APKM file is DRM-free, no need to convert it to APKS.</string>
 </resources>

@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -79,6 +80,15 @@ public class UnApkmActivity extends AppCompatActivity {
             String fileName = getFileName(getContentResolver(), uri);
             if (fileName != null && !fileName.endsWith(".apkm")) {
                 throw new IOException("Invalid file.");
+            }
+            try {
+                if (isInputFileZip(getContentResolver(), uri)) {
+                    // DRM-free APKM file
+                    Toast.makeText(this, R.string.drm_free_apkm_msg, Toast.LENGTH_LONG).show();
+                    finish();
+                    return;
+                }
+            } catch (IOException ignore) {
             }
             inputStream = getContentResolver().openInputStream(uri);
             if (inputStream == null) finish();
@@ -129,6 +139,17 @@ public class UnApkmActivity extends AppCompatActivity {
         } catch (Exception e) {
             return filename;
         }
+    }
+
+    private static final byte[] ZIP_FILE_HEADER = new byte[]{0x50, 0x4B, 0x03, 0x04};
+
+    public static boolean isInputFileZip(@NonNull ContentResolver cr, @NonNull Uri uri) throws IOException {
+        byte[] header = new byte[4];
+        try (InputStream is = cr.openInputStream(uri)) {
+            //noinspection ResultOfMethodCallIgnored
+            is.read(header);
+        }
+        return Arrays.equals(ZIP_FILE_HEADER, header);
     }
 
     class UnApkmThread extends Thread {
