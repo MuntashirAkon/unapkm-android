@@ -1,0 +1,1 @@
+Do not attempt to convert DRM-free APKM files. If you get the DRM-free message, just rename the APK file to APKS and open it with your favourite APKS installer.
